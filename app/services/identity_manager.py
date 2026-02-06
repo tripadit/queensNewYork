@@ -29,6 +29,11 @@ class IdentityManager:
                 best_score = score
                 best_person = person
 
+        if best_person:
+            print(f"[Identity] Best similarity for track {track_id}: {best_score:.4f} (ID: {best_person.id})")
+        else:
+            print(f"[Identity] No matches found for track {track_id} (DB empty or no scores)")
+
         if best_score < FACE_SIMILARITY_THRESHOLD:
             person = Person(
                 face_embedding=embedding,
@@ -51,6 +56,10 @@ class IdentityManager:
         else:
             person = best_person
             person.last_seen = now
+            
+            # Update gender_age if it's missing and we have a new prediction
+            if not person.gender_age and gender_age:
+                person.gender_age = gender_age
 
             last_visit = session.execute(
                 select(Visit)

@@ -44,27 +44,26 @@ class VideoProcessor:
             if crop.size == 0:
                 continue
 
-            embedding, score = self.embedder.extract(crop)
-            if embedding is None:
-                continue
+            # Get YOLO confidence for this track
+            # DeepSort track doesn't store conf by default, so we'll use a placeholder or 
+            # correlate if needed. However, since we filtered detections > 0.35, 
+            # any confirmed track crop is a decent candidate.
+            # Let's use person crop size (area) as a score for "best" quality.
+            score = (r - l) * (b - t) 
 
             best_face = self.face_buffer.update(track.track_id, crop, score)
 
             if best_face is not None:
-                # Predict age and gender
+                # 1. Predict age and gender
                 gender_age = self.age_gender_predictor.predict(best_face)
                 
-                # Extract embedding (we already have it from earlier, but let's be consistent with naming)
-                # Actually, video_processor.py:L45 already calls self.embedder.extract(crop)
-                # and uses that score for the face_buffer. 
-                # The architecture says embedding extraction is AFTER best face crop.
-                # In the current code (L45-49), it extracts from EVERY crop.
-                # Let's optimize: extract embedding ONLY for the best face if it's high quality.
+                # 2. Extract embedding (only ONCE per track)
+                embedding, _ = self.embedder.extract(best_face)
                 
-                final_embedding, _ = self.embedder.extract(best_face)
-                if final_embedding is not None:
+                # 3. Pass to identity manager
+                if embedding is not None:
                     self.identity_manager.sync_detection_to_db(
-                        final_embedding, track.track_id, gender_age=gender_age
+                        embedding, track.track_id, gender_age=gender_age
                     )
 
         return frame
