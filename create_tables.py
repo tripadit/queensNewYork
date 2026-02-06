@@ -22,7 +22,8 @@ with engine.connect() as connection:
         ALTER TABLE people 
         ADD COLUMN IF NOT EXISTS visit_count INTEGER DEFAULT 1,
         ADD COLUMN IF NOT EXISTS daily_visit_count INTEGER DEFAULT 1,
-        ADD COLUMN IF NOT EXISTS last_visit_date DATE;
+        ADD COLUMN IF NOT EXISTS last_visit_date DATE,
+        ADD COLUMN IF NOT EXISTS gender_age VARCHAR;
     """))
     connection.commit()
     print("Columns added successfully.")
