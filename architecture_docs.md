@@ -19,8 +19,9 @@ graph TD
         E
     end
     
-    E -->|"Best Face Crop (After 2s)"| F["Embedding Extraction"]
-    F -->|"512-d Vector"| G["Identity Manager"]
+    E -->|"Best Face Crop (After 2s)"| F1["Age & Gender Prediction"]
+    F1 -->|"Predict Values"| F2["Embedding Extraction"]
+    F2 -->|"512-d Vector"| G["Identity Manager"]
     
     subgraph "Database / Identity"
         G --> H{"Found in DB?"}
@@ -85,18 +86,25 @@ This layer ensures quality control by verifying a person is present for a minimu
       - **Trigger**: If true, return the `best_face` (image crop) and mark the track as `locked`.
       - **Post-Lock**: Future frames for this `track_id` are ignored by the recognition pipeline to prevent duplicate processing for the same track.
 
-### D. Embedding & Cosine Similarity (`app/face/insightface_embedder.py`)
+### D. Age & Gender Prediction (`app/face/age_gender_predictor.py`)
+- **Model**: `bestage.pt` (Fine-tuned YOLO).
+- **Process**:
+  1. Takes the `best_face` crop from the buffer.
+  2. Runs classification to determine gender and age category.
+  3. **Output**: Categorical string (e.g., "Male Age- 25").
+
+### E. Embedding & Cosine Similarity (`app/face/insightface_embedder.py`)
 - **Model**: `buffalo_l` (InsightFace).
 - **Process**:
-  1.  Takes the `best_face` crop from the buffer.
-  2.  Detects the face *within* that person crop (refining the bounding box).
-  3.  Aligns the face using landmarks.
-  4.  Extracts a 512-dimension feature vector.
+  1. Takes the `best_face` crop from the buffer.
+  2. Detects the face *within* that person crop (refining the bounding box).
+  3. Aligns the face using landmarks.
+  4. Extracts a 512-dimension feature vector.
 - **Mathematics**:
   - The output vector $v$ is **L2-Normalized**:
     $$ ||v||_2 = \sqrt{\sum v_i^2} = 1 $$
 
-### E. Visit Session Logic (`app/services/identity_manager.py`)
+### F. Visit Session Logic (`app/services/identity_manager.py`)
 This layer determines if the person is a new visitor, a returning customer, or currently in an active session.
 
 #### 1. Identification (Matching)
@@ -143,6 +151,7 @@ This layer determines if the person is a new visitor, a returning customer, or c
   - `id`: UUID.
   - `face_embedding`: 512-float vector (`pgvector`).
   - `name_label`: String (default "Unknown").
+  - `gender_age`: String - Categorical prediction from `bestage.pt`.
   - `first_seen`: DateTime of first detection.
   - `last_seen`: DateTime of most recent detection.
   - `visit_count`: Integer - Total lifetime visits (incremented on re-entry).

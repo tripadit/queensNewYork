@@ -26,6 +26,7 @@ class Person(Base):
     visit_count = Column(Integer, default=1)  # Total visits lifetime
     daily_visit_count = Column(Integer, default=1)  # Visits today
     last_visit_date = Column(Date)  # Track last visit date for daily reset
+    gender_age = Column(String)  # Age and gender prediction (e.g., "Female Age- 25")
 
     visits = relationship("Visit", back_populates="person")
 

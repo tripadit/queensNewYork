@@ -12,7 +12,7 @@ from app.core import FACE_SIMILARITY_THRESHOLD, REENTRY_TIME_MINUTES
 
 class IdentityManager:
 
-    def sync_detection_to_db(self, embedding, track_id):
+    def sync_detection_to_db(self, embedding, track_id, gender_age=None):
         now = datetime.utcnow()
         session = SessionLocal()
 
@@ -34,7 +34,8 @@ class IdentityManager:
                 face_embedding=embedding,
                 first_seen=now,
                 last_seen=now,
-                last_visit_date=now.date()
+                last_visit_date=now.date(),
+                gender_age=gender_age
             )
             session.add(person)
             session.flush()
