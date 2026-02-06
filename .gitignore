@@ -1,0 +1,13 @@
+.venv310
+.venv311
+.venv312
+
+
+# Python virtual environments
+venv/
+venv310/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc

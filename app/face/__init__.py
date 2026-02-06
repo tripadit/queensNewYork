@@ -1,0 +1,1 @@
+from .insightface_embedder import InsightFaceEmbedder
