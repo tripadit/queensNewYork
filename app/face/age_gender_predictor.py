@@ -24,14 +24,18 @@ class AgeGenderPredictor:
         Returns: String (e.g., 'Female Age- 25') or None
         """
         results = self.model(image, verbose=False)[0]
-        if len(results.boxes) == 0:
-            return None
         
-        # Take the detection with the highest confidence
-        best_idx = results.boxes.conf.argmax()
-        class_id = int(results.boxes.cls[best_idx])
-        
-        if class_id < len(self.class_names):
-            return self.class_names[class_id]
+        # Check for classification results
+        if hasattr(results, 'probs') and results.probs is not None:
+            class_id = int(results.probs.top1)
+            if class_id < len(self.class_names):
+                return self.class_names[class_id]
+
+        # Fallback to detection results
+        if len(results.boxes) > 0:
+            best_idx = results.boxes.conf.argmax()
+            class_id = int(results.boxes.cls[best_idx])
+            if class_id < len(self.class_names):
+                return self.class_names[class_id]
         
         return None

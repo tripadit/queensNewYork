@@ -12,5 +12,5 @@ REENTRY_TIME_MINUTES = 20
 # Video
 # CAMERA_INDEX = 0   # use RTSP URL later
 
-# RtSP_URL = "rtsp://admin:Seethos123@192.168.1.90:554/Streaming/Channels/101"
-RtSP_URL = "rtsp://testuser:qwert123@98.14.165.74:554/cam/realmonitor?channel=8&subtype=0"
+RtSP_URL = "rtsp://admin:Seethos123@192.168.1.90:554/Streaming/Channels/101"
+# RtSP_URL = "rtsp://testuser:qwert123@98.14.165.74:554/cam/realmonitor?channel=8&subtype=0"
