@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Segregation Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
+            width: 100%;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .video-container {
+            flex: 2;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            min-width: 640px;
+            min-height: 480px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .video-feed {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .stats-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 300px;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .card h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #666;
+        }
+        .card .count {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .staff-card .count { color: #2ecc71; }
+        .customer-card .count { color: #e74c3c; }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s;
+        }
+        .btn-start { background-color: #3498db; color: white; }
+        .btn-stop { background-color: #e74c3c; color: white; }
+        button:hover { opacity: 0.9; }
+    </style>
+</head>
+<body>
+
+    <h1>Staff vs Customer Monitoring</h1>
+
+    <div class="container">
+        <div class="video-container">
+            <img src="/video_feed" alt="Live Video Feed" class="video-feed" id="videoFeed">
+        </div>
+
+        <div class="stats-container">
+            <div class="card staff-card">
+                <h2>Staff Detected</h2>
+                <div class="count" id="staffCount">0</div>
+            </div>
+            <div class="card customer-card">
+                <h2>Customers Detected</h2>
+                <div class="count" id="customerCount">0</div>
+            </div>
+            
+            <div class="controls">
+                <button class="btn-start" onclick="startProcessing()">Start System</button>
+                <button class="btn-stop" onclick="stopProcessing()">Stop System</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateStats() {
+            fetch('/stats/current')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('staffCount').textContent = data.Staff || 0;
+                    document.getElementById('customerCount').textContent = data.Customer || 0;
+                })
+                .catch(err => console.error('Error fetching stats:', err));
+        }
+
+        function startProcessing() {
+            fetch('/start', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    console.log(data);
+                    // Refresh video feed image to force reconnect if broken
+                    document.getElementById('videoFeed').src = "/video_feed?" + new Date().getTime();
+                });
+        }
+
+        function stopProcessing() {
+            fetch('/stop', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => console.log(data));
+        }
+
+        // Update stats every 1 second
+        setInterval(updateStats, 1000);
+    </script>
+</body>
+</html>

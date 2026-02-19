@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+ultralytics
+psycopg2-binary
+pgvector
+deepface
+opencv-python
+python-dotenv
+tf-keras
+requests
+pydantic-settings
+python-multipart
