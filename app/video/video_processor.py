@@ -44,12 +44,9 @@ class VideoProcessor:
             if crop.size == 0:
                 continue
 
-            # Get YOLO confidence for this track
-            # DeepSort track doesn't store conf by default, so we'll use a placeholder or 
-            # correlate if needed. However, since we filtered detections > 0.35, 
-            # any confirmed track crop is a decent candidate.
-            # Let's use person crop size (area) as a score for "best" quality.
-            score = (r - l) * (b - t) 
+            # Detect face in the person crop to get a quality score
+            # This ensures we pick the frame where the face is most clear
+            score = self.embedder.detect_only(crop)
 
             best_face = self.face_buffer.update(track.track_id, crop, score)
 

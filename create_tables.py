@@ -15,6 +15,12 @@ with engine.connect() as connection:
 Base.metadata.create_all(bind=engine)
 print("Tables created successfully.")
 
+# Create pgvector extension if not exists
+with engine.connect() as connection:
+    connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+    connection.commit()
+    print("Vector extension checked.")
+
 # Add new columns to existing people table
 print("Adding new columns to people table...")
 with engine.connect() as connection:
@@ -23,10 +29,29 @@ with engine.connect() as connection:
         ADD COLUMN IF NOT EXISTS visit_count INTEGER DEFAULT 1,
         ADD COLUMN IF NOT EXISTS daily_visit_count INTEGER DEFAULT 1,
         ADD COLUMN IF NOT EXISTS last_visit_date DATE,
-        ADD COLUMN IF NOT EXISTS gender_age VARCHAR;
+        ADD COLUMN IF NOT EXISTS gender_age VARCHAR,
+        ADD COLUMN IF NOT EXISTS is_staff BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS staff_name VARCHAR;
     """))
     connection.commit()
     print("Columns added successfully.")
+
+# Create loitering_logs table if not exists
+print("Creating loitering_logs table...")
+with engine.connect() as connection:
+    connection.execute(text("""
+        CREATE TABLE IF NOT EXISTS loitering_logs (
+            id SERIAL PRIMARY KEY,
+            track_id INTEGER NOT NULL,
+            start_time TIMESTAMP NOT NULL,
+            end_time TIMESTAMP,
+            duration FLOAT,
+            is_alert BOOLEAN DEFAULT FALSE,
+            status VARCHAR DEFAULT 'tracking'
+        );
+    """))
+    connection.commit()
+    print("Loitering table checked.")
 
 # Initialize visit counts for existing people
 print("Initializing visit counts...")
