@@ -7,7 +7,15 @@
 venv/
 venv310/
 .venv/
+Loitering/backend/myenv/
 
 # Python cache
 __pycache__/
 *.pyc
+myenv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pt
+node_modules/
