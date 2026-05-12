@@ -46,6 +46,7 @@ class DetectionsLog(Base):
     __tablename__ = "detections_log"
 
     id = Column(Integer, primary_key=True)
+    channel_id = Column(String(50)) # '8', '4', '16'
     tracking_id = Column(Integer)
     label = Column(String(50)) # 'Staff', 'Customer', 'Unknown'
     confidence = Column(Integer)
@@ -56,6 +57,7 @@ class WeaponDetectionLog(Base):
     __tablename__ = "weapon_detection_logs"
 
     id = Column(Integer, primary_key=True)
+    channel_id = Column(String(50)) # '8', '4', '16'
     label = Column(String(50)) # 'Handgun', 'Weapon', etc.
     confidence = Column(Float)
     timestamp = Column(DateTime, default=datetime.utcnow)
@@ -65,6 +67,7 @@ class LoiteringLog(Base):
     __tablename__ = "loitering_logs"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    channel_id = Column(String(50)) # '8', '4', '16'
     track_id = Column(Integer, nullable=False, index=True)
     start_time = Column(DateTime, nullable=False, default=datetime.utcnow)
     end_time = Column(DateTime, nullable=True)

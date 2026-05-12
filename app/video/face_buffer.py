@@ -7,7 +7,7 @@ import time
 
 class FaceBuffer:
 
-    def __init__(self, observe_seconds=2.0):
+    def __init__(self, observe_seconds=1.0):
         self.observe_seconds = observe_seconds
         self.buffer = {}
 

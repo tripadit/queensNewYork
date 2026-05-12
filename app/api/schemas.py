@@ -41,6 +41,8 @@ class AnalyticsSummary(BaseModel):
     total_visits_today: int
     unique_visitors_today: int
     conversion_rate: float
+    avg_dwell: float
+    loyalty_rate: float
 
 class HourlyFlow(BaseModel):
     hour: int

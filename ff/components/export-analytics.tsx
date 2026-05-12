@@ -41,22 +41,40 @@ export function ExportAnalytics() {
 
   const handleExport = async (action: string) => {
     setIsExporting(action);
+    console.log(`Starting export action: ${action}`);
     try {
-      const [people, visits, staffLogs, loiteringLogs] = await Promise.all([
+      if (action === 'report') {
+        console.log("Requesting PDF report...");
+        const blob = await api.getReportPdf();
+        console.log("PDF received, triggering download.");
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `seethos_analytics_report_${Date.now()}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        return;
+      }
+
+      console.log("Fetching bulk data for export...");
+      const [people, visits, staffLogs, loiteringLogs, summary] = await Promise.all([
         api.getPeople(),
         api.getVisits(),
         api.getStaffLogs(),
         api.getLoiteringLogs(),
+        api.getAnalyticsSummary(),
       ]);
 
-      if (action === 'json' || action === 'report') {
+      if (action === 'json') {
         const fullData = {
           exportDate: new Date().toISOString(),
           people,
           visits,
           staffLogs,
           loiteringLogs,
-          summary: await api.getAnalyticsSummary(),
+          summary,
         };
         downloadFile(
           JSON.stringify(fullData, null, 2),
@@ -65,18 +83,18 @@ export function ExportAnalytics() {
         );
       } else if (action === 'csv') {
         // Simple CSV flattening for visits as primary log
-        let csvContent = 'Type,ID,Name/Label,Time,Details\n';
+        let csvContent = 'Type,ID,Name/Label,Time,Channel,Details\n';
         
         visits.forEach((v: any) => {
-          csvContent += `Visit,${v.id},${v.person?.name_label || 'Unknown'},${v.start_time},Customer Visit\n`;
+          csvContent += `Visit,${v.id},${v.person?.name_label || 'Unknown'},${v.start_time},N/A,Customer Visit\n`;
         });
         
         staffLogs.forEach((s: any) => {
-          csvContent += `Staff Detection,${s.tracking_id},${s.label},${s.timestamp},Confidence: ${s.confidence}%\n`;
+          csvContent += `Staff Detection,${s.tracking_id},${s.label},${s.timestamp},${s.channel_id || 'N/A'},Confidence: ${s.confidence}%\n`;
         });
 
         loiteringLogs.forEach((l: any) => {
-          csvContent += `Loitering,${l.track_id},${l.status},${l.start_time},Duration: ${l.duration}s\n`;
+          csvContent += `Loitering,${l.track_id},${l.status},${l.start_time},${l.channel_id || 'N/A'},Duration: ${l.duration}s\n`;
         });
 
         downloadFile(
@@ -85,9 +103,9 @@ export function ExportAnalytics() {
           'text/csv'
         );
       }
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert('Failed to export data. Please ensure the backend is running.');
+    } catch (error: any) {
+      console.error('Export error details:', error);
+      alert(`Export failed: ${error.message || 'Unknown error'}. Check browser console for details.`);
     } finally {
       setIsExporting(null);
     }
@@ -137,8 +155,7 @@ export function ExportAnalytics() {
       <div className="mt-6 p-4 bg-white/5 border border-white/10 rounded-lg">
         <p className="text-xs text-gray-500">
           <span className="font-semibold text-white">Note:</span> All
-          exports are generated in real-time from current data. Schedule
-          automated reports in settings.
+          exports are generated in real-time from current data. 
         </p>
       </div>
     </div>

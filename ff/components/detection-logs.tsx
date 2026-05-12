@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import { AlertCircle, Package, Users, Eye } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { usePolling } from '@/hooks/use-polling';
@@ -25,9 +26,15 @@ const detectionColors = {
 };
 
 export function DetectionLogs() {
+  const [mounted, setMounted] = useState(false);
   const { data: staffLogs } = usePolling(api.getStaffLogs, 2000);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const formatTime = (timestamp: string) => {
+    if (!mounted) return '...';
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();

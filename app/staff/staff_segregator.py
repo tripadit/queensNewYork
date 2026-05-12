@@ -6,11 +6,13 @@ from app.db import StaffProfile, DetectionsLog
 from app.core.database import SessionLocal
 from app.face.insightface_embedder import InsightFaceEmbedder
 from app.video.face_buffer import FaceBuffer
-from ultralytics import YOLO
+from app.core.models import registry
+from app.core.db_worker import db_worker
 
 class StaffSegregator:
-    def __init__(self, observe_seconds=2.0):
-        self.detector = YOLO("yolo11n.pt").to("cpu")
+    def __init__(self, channel_id="1", observe_seconds=2.0):
+        self.channel_id = channel_id
+        self.detector = registry.yolo_person
         self.embedder = InsightFaceEmbedder()
         self.face_buffer = FaceBuffer(observe_seconds=observe_seconds)
         
@@ -117,24 +119,30 @@ class StaffSegregator:
                         self.identified_ids.add(track_id)
                         
                         # Log the detection to the DB ONCE
-                        self.log_detection(track_id, label, session)
+                        self.log_detection(track_id, label)
                         stats[label] += 1
                         print(f"[StaffSegregator] ID {track_id} identified as {label} ({name or 'N/A'})")
                     else:
                         # Still observing or quality too low
                         stats["Unknown"] += 1
 
-        self.current_stats = stats
         session.close()
+        self.current_stats = stats
 
-    def log_detection(self, track_id, label, session):
-        """Log the result to the database."""
+    def log_detection(self, track_id, label):
+        """Log the result to the database asynchronously."""
+        db_worker.submit(self._log_detection_logic, track_id, label)
+
+    def _log_detection_logic(self, track_id, label):
+        """The actual DB write logic for staff/customer detections."""
         try:
-            log = DetectionsLog(tracking_id=track_id, label=label, confidence=1)
+            session = SessionLocal()
+            log = DetectionsLog(channel_id=self.channel_id, tracking_id=track_id, label=label, confidence=1)
             session.add(log)
             session.commit()
+            session.close()
         except Exception as e:
-            print(f"[StaffSegregator] DB Log Error: {e}")
+            print(f"[StaffSegregator-Async] DB Log Error: {e}")
 
     def get_stats(self):
         return self.current_stats

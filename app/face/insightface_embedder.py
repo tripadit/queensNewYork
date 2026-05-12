@@ -3,17 +3,14 @@ Face detection + embedding using InsightFace.
 Returns a normalized 512-d vector.
 """
 
-import insightface
 import numpy as np
+from app.core.models import registry
 
 class InsightFaceEmbedder:
 
     def __init__(self):
-        self.app = insightface.app.FaceAnalysis(
-            name="buffalo_l",
-            providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
-        )
-        self.app.prepare(ctx_id=-1, det_size=(640, 640))
+        # Use shared singleton instance
+        self.app = registry.face_app
 
     def extract(self, image: np.ndarray):
         """

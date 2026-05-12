@@ -1,4 +1,5 @@
 import time
+import threading
 from collections import defaultdict, deque
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
@@ -10,6 +11,7 @@ from ultralytics import YOLO
 
 from app.db import LoiteringLog
 from app.core.database import SessionLocal
+from app.core.db_worker import db_worker
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -31,6 +33,8 @@ POLYGON_FILL = (0, 0, 255)  # semi-transparent red overlay
 # ---------------------------------------------------------------------------
 def point_in_polygon(px: float, py: float, polygon: Polygon) -> bool:
     """Return True if (px, py) is inside the polygon."""
+    if polygon is None:
+        return False
     return polygon.contains(Point(px, py))
 
 
@@ -48,11 +52,13 @@ class LoiteringProcessor:
 
     def __init__(
         self,
+        channel_id: str = "1",
         model_path: str = "yolov8n.pt",
         polygon_coords: Optional[List[Tuple[int, int]]] = None,
         confidence: float = 0.35,
         on_alert=None,  # callback: (alert_dict) -> None
     ):
+        self.channel_id = channel_id
         # Load YOLO model
         self.model = YOLO(model_path).to("cpu")
         self.confidence = confidence
@@ -79,6 +85,9 @@ class LoiteringProcessor:
 
         # DB-logged events cache {track_id: log_id}
         self._log_ids: Dict[int, int] = {}
+        self._log_ids_lock = threading.Lock() if hasattr(threading, 'Lock') else None
+        # Since we use db_worker, we need to be careful with shared state like _log_ids
+        # but for this specific logic, it's mostly written in main loop and read in worker.
 
     # ------------------------------------------------------------------
     # Polygon management
@@ -156,7 +165,8 @@ class LoiteringProcessor:
                 # Start timer if new
                 if tid not in self.entry_times:
                     self.entry_times[tid] = now
-                    self._db_start_event(tid)
+                    # Submit to background worker
+                    db_worker.submit(self._db_start_event_logic, tid, datetime.utcnow())
 
                 elapsed = now - self.entry_times[tid]
                 is_loitering = elapsed >= LOITER_THRESHOLD_SEC
@@ -164,7 +174,7 @@ class LoiteringProcessor:
                 # Fire alert once
                 if is_loitering and tid not in self.alerted_ids:
                     self.alerted_ids.add(tid)
-                    self._db_flag_alert(tid, elapsed)
+                    db_worker.submit(self._db_flag_alert_logic, tid, elapsed)
                     if self.on_alert:
                         self.on_alert(
                             {
@@ -174,9 +184,12 @@ class LoiteringProcessor:
                             }
                         )
 
-                # Update duration in DB periodically for live tracking
-                if tid in self._log_ids and is_loitering:
-                    self._db_update_duration(tid, elapsed)
+                # Update duration in DB periodically (e.g., every 5 seconds of loitering)
+                if is_loitering:
+                    # To avoid flooding DB worker, only update every 5 seconds
+                    # We can use a simple modulo or track last update time
+                    if int(elapsed) % 5 == 0:
+                         db_worker.submit(self._db_update_duration_logic, tid, elapsed)
 
                 # Draw bounding box
                 colour = RED if is_loitering else GREEN
@@ -188,7 +201,7 @@ class LoiteringProcessor:
                 if tid in self.entry_times:
                     # They left the zone — reset timer
                     elapsed = now - self.entry_times[tid]
-                    self._db_end_event(tid, elapsed)
+                    db_worker.submit(self._db_end_event_logic, tid, elapsed, datetime.utcnow())
                     del self.entry_times[tid]
                     self.alerted_ids.discard(tid)
                     self.inside_ids.discard(tid)
@@ -203,7 +216,7 @@ class LoiteringProcessor:
         gone = set(self.entry_times.keys()) - set(int(t) for t in track_ids)
         for tid in gone:
             elapsed = now - self.entry_times[tid]
-            self._db_end_event(tid, elapsed)
+            db_worker.submit(self._db_end_event_logic, tid, elapsed, datetime.utcnow())
             del self.entry_times[tid]
             self.alerted_ids.discard(tid)
             if tid in self.trails:
@@ -215,21 +228,22 @@ class LoiteringProcessor:
         now = time.time()
         for tid in list(self.entry_times.keys()):
             elapsed = now - self.entry_times[tid]
-            self._db_end_event(tid, elapsed)
+            db_worker.submit(self._db_end_event_logic, tid, elapsed, datetime.utcnow())
         self.entry_times.clear()
         self.alerted_ids.clear()
         self.trails.clear()
         self.inside_ids.clear()
 
     # ------------------------------------------------------------------
-    # Database helpers
+    # Database Logic (Run in background thread)
     # ------------------------------------------------------------------
-    def _db_start_event(self, tid: int):
+    def _db_start_event_logic(self, tid: int, start_time: datetime):
         try:
             db = SessionLocal()
             log = LoiteringLog(
+                channel_id=self.channel_id,
                 track_id=tid,
-                start_time=datetime.utcnow(),
+                start_time=start_time,
                 is_alert=False,
                 status="tracking",
             )
@@ -239,51 +253,53 @@ class LoiteringProcessor:
             self._log_ids[tid] = log.id
             db.close()
         except Exception as e:
-            print(f"Error start event: {e}")
+            print(f"Error start event logic: {e}")
 
-    def _db_flag_alert(self, tid: int, elapsed: float):
+    def _db_flag_alert_logic(self, tid: int, elapsed: float):
         try:
-            db = SessionLocal()
             log_id = self._log_ids.get(tid)
             if log_id:
-                log = db.query(LoiteringLog).get(log_id)
+                db = SessionLocal()
+                log = db.get(LoiteringLog, log_id)
                 if log:
                     log.is_alert = True
                     log.status = "loitering"
                     log.duration = elapsed
                     db.commit()
-            db.close()
-        except Exception:
-            pass
+                db.close()
+        except Exception as e:
+            print(f"Error flag alert logic: {e}")
 
-    def _db_update_duration(self, tid: int, elapsed: float):
+    def _db_update_duration_logic(self, tid: int, elapsed: float):
         try:
-            db = SessionLocal()
             log_id = self._log_ids.get(tid)
             if log_id:
-                log = db.query(LoiteringLog).get(log_id)
+                db = SessionLocal()
+                log = db.get(LoiteringLog, log_id)
                 if log:
                     log.duration = elapsed
                     db.commit()
-            db.close()
+                db.close()
         except Exception:
             pass
 
-    def _db_end_event(self, tid: int, elapsed: float):
+    def _db_end_event_logic(self, tid: int, elapsed: float, end_time: datetime):
         try:
-            db = SessionLocal()
             log_id = self._log_ids.get(tid)
             if log_id:
-                log = db.query(LoiteringLog).get(log_id)
+                db = SessionLocal()
+                log = db.get(LoiteringLog, log_id)
                 if log:
-                    log.end_time = datetime.utcnow()
+                    log.end_time = end_time
                     log.duration = elapsed
                     log.status = "left"
                     db.commit()
-                del self._log_ids[tid]
-            db.close()
-        except Exception:
-            pass
+                db.close()
+                # Clean up local cache
+                if tid in self._log_ids:
+                    del self._log_ids[tid]
+        except Exception as e:
+            print(f"Error end event logic: {e}")
 
     # ------------------------------------------------------------------
     # Drawing helpers

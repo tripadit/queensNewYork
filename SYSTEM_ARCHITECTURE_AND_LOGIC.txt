@@ -1,0 +1,100 @@
+================================================================================
+SEETHOS VISION AI PLATFORM - COMPREHENSIVE SYSTEM ARCHITECTURE & LOGIC
+================================================================================
+
+1. CORE IDENTITY RESOLUTION (PERSON TRACKING)
+--------------------------------------------------------------------------------
+The system uses a "Face-First" identity model powered by InsightFace and pgvector.
+
+* Face Feature Extraction:
+  - Uses InsightFace to generate a 512-dimensional normalized floating-point vector (embedding) for every clear face detected.
+  - Mathematics: Embeddings are L2-normalized, allowing cosine similarity to be calculated via a simple dot product or cosine distance in SQL.
+
+* Identity Matching (pgvector):
+  - Instead of slow Python-based loops, matching happens inside the PostgreSQL database using the `<=>` (cosine distance) operator.
+  - Logic: The system queries the 'people' table for the closest embedding.
+  - Threshold: A match is confirmed only if Similarity (1 - Distance) is >= 0.70.
+
+* Unique vs. Repetitive Visits (The 20-Minute Rule):
+  - When a matched person is seen, the system checks their last recorded visit.
+  - Same Visit: If seen within 20 minutes of their last sighting on ANY camera, the system updates the existing 'Visit' record (end_time) and does NOT increment analytics.
+  - New Visit: If the gap is > 20 minutes, a new 'Visit' record is created, and 'daily_visit_count' and 'total_flow' are incremented.
+  - Daily Reset: Every person has a 'last_visit_date'. If they appear on a new calendar day, their 'daily_visit_count' resets to 1.
+
+2. STAFF SEGREGATION LOGIC
+--------------------------------------------------------------------------------
+* Registration: Staff are pre-registered with a name and a face image.
+* Recognition:
+  - During every face detection, the system first checks the 'staff_profiles' table.
+  - Matching: Uses a stricter distance threshold (0.45) to ensure high precision for staff identification.
+  - Labeling: If a match is found, the person is labeled "Staff" in the live cache and database logs, and they are EXCLUDED from customer analytics (Unique Visitors, conversion rate).
+
+3. SPATIO-TEMPORAL HANDOVER SYSTEM
+--------------------------------------------------------------------------------
+This logic enables "Seamless Store Tracking" across Cam 8, Cam 4, and Cam 16.
+
+* Transit Pool: A global singleton 'HandoverManager' maintains a real-time list of people who just left a camera's view.
+* Exit Logic:
+  - Defined 'Exit Zones' (polygons) trigger a registration.
+  - When an identified person (Staff or Customer) disappears while in an Exit Zone, their full identity data (ID, name, embedding, and even loitering timer) is put into the "Transit Pool" with a 15-second TTL (Time-To-Live).
+* Entry Logic:
+  - When a new track appears in an 'Entry Zone', the system instantly checks the Transit Pool for a recent exit from a "source" camera.
+  - If a match is found based on time and spatial proximity, the identity is "Handed Over" immediately.
+  - Result: The person is identified WITHOUT needing a face shot on the second camera.
+
+4. IDENTITY-LINKED LOITERING MONITORING
+--------------------------------------------------------------------------------
+* Unified State: Loitering is no longer a separate program; it is integrated into the 'VideoProcessor'.
+* Dynamic Zones: Users draw polygons via the frontend 'Loitering Console'. These coordinates are sent to the backend and applied in real-time.
+* Persistence Across Cameras:
+  - Because of the Handover system, if a person loiters for 10s on Cam 8 and moves to Cam 4, their loitering start_time is transferred.
+  - The timer continues from 10s on the new camera.
+* DB Logging:
+  - Start: A 'LoiteringLog' is created when a person enters a zone.
+  - Update: Duration and is_alert status are updated every 5 seconds.
+  - Alert: Triggered when duration >= 30 seconds.
+  - End: Status is updated to "moved" or "left" when the person exits the zone or frame.
+
+5. WEAPON DETECTION & ALERT PIPELINE
+--------------------------------------------------------------------------------
+* YOLO Inference: Uses a custom-trained YOLO model specifically for weapons (Handguns, etc.).
+* Persistence Checking: To eliminate "flicker" false positives, a weapon must be detected for 2 consecutive frames before an alert is triggered.
+* Multi-Action Alerts:
+  - DB Log: Records channel_id, class, and confidence.
+  - Visual Evidence: Saves a cropped JPG to 'app/alerts/weapon_snapshots/' with a red bounding box and confidence score.
+  - Local Alarm: Triggers a system sound (macOS afplay) for immediate local notification.
+  - 5-Second Cooldown: Prevents flooding the database with 30 alerts per second for the same weapon.
+
+6. OPTIMIZED VIDEO PIPELINE & STREAMING
+--------------------------------------------------------------------------------
+* Shared Model Memory: 'ModelRegistry' singleton ensures YOLO and InsightFace are loaded only ONCE and shared across all 3 camera threads.
+* Forced TCP Transport: All RTSP streams are forced to use TCP instead of UDP to prevent packet loss ("Picture does not contain data" errors).
+* Parallel Encoding: 
+  - The main API ('/stream') uses a ThreadPoolExecutor to encode JPEG frames.
+  - This prevents one slow camera from lagging the other two.
+  - FPS is capped at 20 to balance smoothness with CPU/Network usage.
+
+7. AUTOMATED PDF ANALYTICS ENGINE
+--------------------------------------------------------------------------------
+* Report Generation:
+  - Fetches raw data from 'people', 'visits', 'daily_analytics', and 'loitering_logs'.
+  - Visuals: Uses Matplotlib (Headless Agg backend) to generate:
+    1. Visitor Flow Line/Bar Charts (Hourly traffic).
+    2. Customer Loyalty Pie Charts (New vs. Returning).
+    3. Demographics Breakdown Tables.
+  - Assembly: Uses 'fpdf2' to build a multi-page, branded professional document.
+  - Robustness: Handles "Empty State" (zero data) gracefully without crashing the server.
+
+8. DATABASE SCHEMA (POSTGRESQL)
+--------------------------------------------------------------------------------
+- people: Permanent ID, 512-d Vector, name_label, visits count, demographics.
+- visits: start_time, end_time, link to person_id.
+- daily_analytics: Aggregated 'total_flow' and 'unique_count' per date.
+- detections_log: Historical record of every sighting per channel.
+- weapon_detection_logs: Security-specific audit trail.
+- loitering_logs: Record of behavioral alerts.
+- staff_profiles: Reference embeddings for staff recognition.
+
+================================================================================
+DOCUMENTATION COMPLETE - SEETHOS VISION V2.4
+================================================================================

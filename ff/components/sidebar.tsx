@@ -1,90 +1,101 @@
-"use client"
+'use client';
 
-import { Video, Activity, AlertTriangle, Users, ListChecks, Download, Settings2, LogOut, HelpCircle } from 'lucide-react'
-import { useRouter, usePathname } from 'next/navigation'
+import React from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { 
+  LayoutDashboard, 
+  Users, 
+  ShieldAlert, 
+  BarChart3, 
+  FileDown, 
+  Settings, 
+  HelpCircle,
+  LogOut,
+  Camera
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-type PageType = "live-feed" | "analytics" | "monitoring" | "staff" | "logs" | "export" | "support" | "settings"
+const navItems = [
+  { name: 'Live Feed', href: '/', icon: Camera },
+  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Monitoring', href: '/monitoring', icon: ShieldAlert },
+  { name: 'Staff', href: '/staff', icon: Users },
+  { name: 'Logs', href: '/logs', icon: FileDown },
+];
 
-interface SidebarProps {
-  onNavigate?: (page: PageType) => void
-  currentPage?: PageType
-}
+const secondaryItems = [
+  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Support', href: '/support', icon: HelpCircle },
+];
 
-export function Sidebar({ onNavigate, currentPage }: SidebarProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-
-  const current = currentPage || (pathname === '/' ? 'live-feed' : (pathname.slice(1) as PageType))
-
-  const handleNavigate = (page: PageType) => {
-    if (onNavigate) {
-      onNavigate(page)
-    } else {
-      router.push(page === 'live-feed' ? '/' : `/${page}`)
-    }
-  }
-
-  const navItems = [
-    { id: "live-feed", label: "Live Feed", icon: Video },
-    { id: "analytics", label: "Analytics", icon: Activity },
-    { id: "monitoring", label: "Monitoring", icon: AlertTriangle },
-    { id: "staff", label: "Staff", icon: Users },
-    { id: "logs", label: "Logs", icon: ListChecks },
-    { id: "export", label: "Export", icon: Download },
-  ]
-
-  const bottomItems = [
-    { id: "support", label: "Support", icon: HelpCircle },
-    { id: "settings", label: "Settings", icon: Settings2 },
-  ]
+export function Sidebar() {
+  const pathname = usePathname();
 
   return (
-    <aside className="sticky top-20 h-[calc(100vh-8rem)] md:w-56 lg:w-64 bg-[#0A0A0A] rounded-xl hidden md:flex flex-col p-6 overflow-y-auto border border-white/5">
-      <nav className="flex flex-col gap-3">
+    <div className="w-64 flex flex-col h-full bg-[#0D0D0D] border border-white/5 rounded-2xl p-4 shadow-2xl">
+      {/* Navigation Label */}
+      <div className="px-4 mb-6">
+        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Main Console</p>
+      </div>
+
+      {/* Main Navigation */}
+      <nav className="flex-1 space-y-1.5">
         {navItems.map((item) => {
-          const Icon = item.icon
-          const isActive = current === item.id
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          
           return (
-            <button
-              key={item.id}
-              onClick={() => handleNavigate(item.id as PageType)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${
-                isActive
-                  ? 'bg-green-500/10 text-green-500'
-                  : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
-              }`}
+            <Link
+              key={item.name}
+              href={item.href}
+              className={cn(
+                "group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300",
+                isActive 
+                  ? "bg-green-500/10 border border-green-500/20 text-white" 
+                  : "text-gray-500 hover:text-white hover:bg-white/5 border border-transparent"
+              )}
             >
-              <Icon className="h-5 w-5" />
-              <span className="text-sm font-medium">{item.label}</span>
-            </button>
-          )
+              <Icon className={cn(
+                "w-5 h-5 transition-transform group-hover:scale-110",
+                isActive ? "text-green-500" : "text-gray-500"
+              )} />
+              <span className="text-sm font-bold tracking-tight uppercase">{item.name}</span>
+              {isActive && (
+                <div className="ml-auto w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+              )}
+            </Link>
+          );
         })}
       </nav>
 
-      <div className="mt-auto pt-6 border-t border-white/5 flex flex-col gap-3">
-        {bottomItems.map((item) => {
-          const Icon = item.icon
-          const isActive = current === item.id
+      {/* Divider */}
+      <div className="h-px bg-white/5 my-6 mx-2" />
+
+      {/* Secondary Navigation */}
+      <div className="space-y-1.5 pb-4">
+        <p className="px-4 text-[10px] font-black text-gray-600 uppercase tracking-widest mb-3">System</p>
+        {secondaryItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          
           return (
-            <button
-              key={item.id}
-              onClick={() => handleNavigate(item.id as PageType)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${
-                isActive
-                  ? 'bg-green-500/10 text-green-500'
-                  : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
-              }`}
+            <Link
+              key={item.name}
+              href={item.href}
+              className={cn(
+                "group flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300",
+                isActive 
+                  ? "bg-white/5 text-white" 
+                  : "text-gray-500 hover:text-white hover:bg-white/5"
+              )}
             >
-              <Icon className="h-5 w-5" />
-              <span className="text-sm font-medium">{item.label}</span>
-            </button>
-          )
+              <Icon className="w-4 h-4" />
+              <span className="text-[13px] font-medium">{item.name}</span>
+            </Link>
+          );
         })}
-        <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors w-full">
-          <LogOut className="h-5 w-5" />
-          <span className="text-sm font-medium">Logout</span>
-        </button>
       </div>
-    </aside>
-  )
+    </div>
+  );
 }
